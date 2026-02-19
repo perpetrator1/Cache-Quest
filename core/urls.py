@@ -5,7 +5,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from core.views import (
     login_view, logout_view, me_view, UserViewSet, SpotViewSet, 
-    spot_updates_view, claim_cache_view, user_finds_view
+    spot_updates_view, claim_cache_view, user_finds_view, admin_stats_view
 )
 
 # Router for admin user management and spots
@@ -27,6 +27,9 @@ urlpatterns = [
     
     # User finds history
     path('users/me/finds/', user_finds_view, name='user-finds'),
+    
+    # Admin stats
+    path('admin/stats/', admin_stats_view, name='admin-stats'),
     
     # Admin endpoints and spot CRUD (via router)
     path('', include(router.urls)),

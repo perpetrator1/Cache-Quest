@@ -637,3 +637,66 @@ def user_finds_view(request):
     serializer = FindUpdateSerializer(finds, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+# ============================================================================
+# ADMIN ENDPOINTS
+# ============================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_stats_view(request):
+    """
+    GET /api/admin/stats/
+    
+    Returns admin dashboard statistics:
+    - total_spots: Count of all spots
+    - total_finds: Count of all finds
+    - most_active_users: Top 5 users by find count
+    - most_found_spots: Top 5 spots by find count
+    
+    Only accessible to admin users.
+    """
+    # Check if user is admin
+    if request.user.role != 'admin':
+        return Response(
+            {'error': 'Admin access required.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    # Get total spots
+    total_spots = Spot.objects.filter(is_active=True).count()
+    
+    # Get total finds
+    total_finds = Find.objects.count()
+    
+    # Get most active users (top 5 by find count)
+    most_active_users = User.objects.annotate(
+        find_count=Count('finds')
+    ).filter(find_count__gt=0).order_by('-find_count')[:5]
+    
+    # Get most found spots (top 5 by find count)
+    most_found_spots = Spot.objects.annotate(
+        find_count=Count('finds')
+    ).filter(find_count__gt=0).order_by('-find_count')[:5]
+    
+    # Serialize the data
+    active_users_data = [{
+        'id': user.id,
+        'username': user.username,
+        'display_name': user.display_name,
+        'find_count': user.find_count
+    } for user in most_active_users]
+    
+    found_spots_data = [{
+        'id': spot.id,
+        'name': spot.name,
+        'find_count': spot.find_count
+    } for spot in most_found_spots]
+    
+    return Response({
+        'total_spots': total_spots,
+        'total_finds': total_finds,
+        'most_active_users': active_users_data,
+        'most_found_spots': found_spots_data
+    }, status=status.HTTP_200_OK)
+

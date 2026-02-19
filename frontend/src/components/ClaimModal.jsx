@@ -66,7 +66,7 @@ export function ClaimModal({ spot, isOpen, onClose, onSuccess }) {
             handleSubmitCode(decodedText);
           });
         },
-        (errorMessage) => {
+        () => {
           // Scanning errors (usually just "no QR code found")
           // We can ignore these
         }
@@ -96,23 +96,27 @@ export function ClaimModal({ spot, isOpen, onClose, onSuccess }) {
 
   // Handle tab change
   useEffect(() => {
-    if (activeTab === 'qr' && isOpen) {
-      startScanner();
-    } else {
-      stopScanner();
-    }
+    const startScan = async () => {
+      if (activeTab === 'qr' && isOpen) {
+        await startScanner();
+      } else {
+        await stopScanner();
+      }
+    };
+
+    startScan();
 
     return () => {
       stopScanner();
     };
-  }, [activeTab, isOpen]);
+  }, [activeTab, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopScanner();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset state when modal closes
   useEffect(() => {
@@ -122,7 +126,7 @@ export function ClaimModal({ spot, isOpen, onClose, onSuccess }) {
       setActiveTab('code');
       stopScanner();
     }
-  }, [isOpen]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen || !spot) return null;
 

@@ -22,7 +22,7 @@ export function ProtectedRoute({ children, adminOnly = false }) {
   }
 
   // Redirect to map if admin route but user is not admin
-  if (adminOnly && !user.role === 'admin') {
+  if (adminOnly && user.role !== 'admin') {
     return <Navigate to="/map" replace />;
   }
 

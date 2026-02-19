@@ -12,6 +12,7 @@ export function useWebSocket(url, onMessage, enabled = true) {
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 3000; // 3 seconds
+  const connectFnRef = useRef(null);
 
   const connect = useCallback(() => {
     if (!enabled || !url) return;
@@ -53,7 +54,9 @@ export function useWebSocket(url, onMessage, enabled = true) {
           console.log(`Reconnecting... (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            if (connectFnRef.current) {
+              connectFnRef.current();
+            }
           }, reconnectDelay);
         }
       };
@@ -62,7 +65,12 @@ export function useWebSocket(url, onMessage, enabled = true) {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [url, onMessage, enabled]);
+  }, [url, onMessage, enabled, maxReconnectAttempts, reconnectDelay]);
+
+  // Store the connect function in a ref so it can be called from within the onclose handler
+  useEffect(() => {
+    connectFnRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();

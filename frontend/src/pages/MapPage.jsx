@@ -151,26 +151,7 @@ export function MapPage() {
         // Pan to circle
         mapInstanceRef.current.setView(
           [response.data.fuzzy_lat, response.data.fuzzy_lng],
-    
-
-  // Handle claim success
-  const handleClaimSuccess = (data) => {
-    showToast('🎉 Cache found!', 'success');
-    
-    // Update local state to mark this spot as found
-    if (selectedSpot) {
-      setUserFinds((prev) => new Set([...prev, selectedSpot.id]));
-      
-      // Update spots list to increment find count
-      setSpots((prevSpots) =>
-        prevSpots.map((spot) =>
-          spot.id === selectedSpot.id
-            ? { ...spot, find_count: spot.find_count + 1 }
-            : spot
-        )
-      );
-    }
-  };      Math.max(mapInstanceRef.current.getZoom(), 15)
+          Math.max(mapInstanceRef.current.getZoom(), 15)
         );
       }
     } catch (err) {
@@ -197,6 +178,25 @@ export function MapPage() {
     if (popupRef.current && mapInstanceRef.current) {
       mapInstanceRef.current.closePopup(popupRef.current);
       popupRef.current = null;
+    }
+  };
+
+  // Handle claim success
+  const handleClaimSuccess = () => {
+    showToast('🎉 Cache found!', 'success');
+    
+    // Update local state to mark this spot as found
+    if (selectedSpot) {
+      setUserFinds((prev) => new Set([...prev, selectedSpot.id]));
+      
+      // Update spots list to increment find count
+      setSpots((prevSpots) =>
+        prevSpots.map((spot) =>
+          spot.id === selectedSpot.id
+            ? { ...spot, find_count: spot.find_count + 1 }
+            : spot
+        )
+      );
     }
   };
 
@@ -320,6 +320,19 @@ export function MapPage() {
             <span className="hidden md:inline text-sm font-medium text-gray-700">
               {user?.display_name || user?.username}
             </span>
+            
+            {/* Admin Panel button (only for admins) */}
+            {user?.role === 'admin' && (
+              <a
+                href="/admin"
+                className="flex items-center gap-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 font-medium rounded-lg transition"
+                style={{ minHeight: '44px' }}
+              >
+                <span>⚙️</span>
+                <span className="hidden md:inline">Admin Panel</span>
+              </a>
+            )}
+            
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition"
@@ -338,14 +351,6 @@ export function MapPage() {
         <SpotMarker
           key={spot.id}
           map={mapInstanceRef.current}
-
-      {/* Claim Modal */}
-      <ClaimModal
-        spot={selectedSpot}
-        isOpen={isClaimModalOpen}
-        onClose={() => setIsClaimModalOpen(false)}
-        onSuccess={handleClaimSuccess}
-      />
           spot={spot}
           found={userFinds.has(spot.id)}
           onClick={handleMarkerClick}
@@ -375,6 +380,14 @@ export function MapPage() {
           </div>
         </div>
       )}
+
+      {/* Claim Modal */}
+      <ClaimModal
+        spot={selectedSpot}
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+        onSuccess={handleClaimSuccess}
+      />
     </div>
   );
 }
