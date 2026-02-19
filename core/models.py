@@ -88,10 +88,20 @@ class Spot(models.Model):
     
     def _generate_unique_code(self):
         """Generate a unique 6-character alphanumeric code."""
+        import random
+        import string
+        
         max_attempts = 100
         for _ in range(max_attempts):
             code = ''.join(
-        _generate_qr_code(self):
+                random.choices(string.ascii_uppercase + string.digits, k=6)
+            )
+            if not Spot.objects.filter(unique_code=code).exists():
+                return code
+        
+        raise ValueError("Could not generate unique code after maximum attempts")
+    
+    def _generate_qr_code(self):
         """Generate QR code image for this spot's unique_code."""
         if not self.unique_code:
             return
@@ -132,13 +142,7 @@ class Spot(models.Model):
         if is_new and not self.qr_code:
             self._generate_qr_code()
             # Save again to update the qr_code field
-            super().save(update_fields=['qr_code']generate unique code after maximum attempts")
-    
-    def save(self, *args, **kwargs):
-        """Override save to auto-generate unique_code if not set."""
-        if not self.unique_code:
-            self.unique_code = self._generate_unique_code()
-        super().save(*args, **kwargs)
+            super().save(update_fields=['qr_code'])
 
 
 class Find(models.Model):

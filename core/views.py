@@ -503,7 +503,8 @@ def spot_updates_view(request):
             {'error': 'Provide a valid ISO 8601 timestamp.'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    Cap results if timestamp is more than 7 days ago
+    
+    # Cap results if timestamp is more than 7 days ago
     seven_days_ago = timezone.now() - timedelta(days=7)
     limit = None
     if since_datetime < seven_days_ago:

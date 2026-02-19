@@ -1,0 +1,62 @@
+services:
+  # PostgreSQL with PostGIS
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: cache_quest_db
+    environment:
+      POSTGRES_DB: cache_quest
+      POSTGRES_USER: cache_quest_user
+      POSTGRES_PASSWORD: cache_quest_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cache_quest_user -d cache_quest"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cache_quest_backend
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py shell -c \"from core.models import User; User.objects.filter(username='admin').exists() or User.objects.create_user(username='admin', password='adminpass123', role='admin', is_active=True, is_superuser=True, is_staff=True)\" &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+      - media_files:/app/media
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-dev-key-change-in-production
+      - DATABASE_URL=postgis://cache_quest_user:cache_quest_pass@db:5432/cache_quest
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cache_quest_frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  media_files:

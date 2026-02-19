@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'django.contrib.gis',  # PostGIS support
     
     # Third-party apps
+    'corsheaders',  # CORS support
     'rest_framework',
     'rest_framework.authtoken',  # Token authentication
     'allauth',
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS - must be before CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -148,6 +150,11 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+]
 
 # Django Allauth
 AUTHENTICATION_BACKENDS = [

@@ -1,0 +1,22 @@
+# Frontend
+node_modules/
+npm-debug.log
+.npm
+dist/
+build/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
