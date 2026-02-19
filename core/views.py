@@ -9,6 +9,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from datetime import timedelta
 
 from core.models import User, Spot, Find
 from core.serializers import (
@@ -17,7 +18,8 @@ from core.serializers import (
     UserDetailSerializer,
     SpotCreateSerializer, SpotUpdateSerializer, SpotAdminListSerializer,
     SpotAdminDetailSerializer, SpotPublicListSerializer, SpotClueSerializer,
-    FindUpdateSerializer
+    FindUpdateSerializer, ClaimCacheSerializer, ClaimCacheResponseSerializer,
+    SpotFindSerializer, UserFindHistorySerializer
 )
 from core.permissions import IsAdminRole, check_last_admin
 
@@ -434,6 +436,33 @@ class SpotViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(spot, context={'request': request})
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def finds(self, request, pk=None):
+        """
+        GET /api/spots/<id>/finds/
+        
+        List all finds for this spot.
+        Returns username (display_name if set, else username) and found_at.
+        Ordered by found_at ascending.
+        
+        Edge cases:
+        - Inactive spot: 404
+        - Spot with no finds: return empty array
+        """
+        try:
+            spot = Spot.objects.get(pk=pk, is_active=True)
+        except Spot.DoesNotExist:
+            return Response(
+                {'error': 'Spot not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get all finds for this spot, ordered by found_at ascending
+        finds = Find.objects.filter(spot=spot).select_related('found_by').order_by('found_at')
+        
+        serializer = SpotFindSerializer(finds, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -474,6 +503,11 @@ def spot_updates_view(request):
             {'error': 'Provide a valid ISO 8601 timestamp.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    Cap results if timestamp is more than 7 days ago
+    seven_days_ago = timezone.now() - timedelta(days=7)
+    limit = None
+    if since_datetime < seven_days_ago:
+        limit = 100
     
     # Get finds after the timestamp
     finds = Find.objects.filter(
@@ -481,7 +515,124 @@ def spot_updates_view(request):
         spot__is_active=True  # Only include finds for active spots
     ).select_related('spot', 'found_by').order_by('found_at')
     
+    # Apply limit if needed
+    if limit:
+        finds = finds[:limit]
+    
     # Serialize
+    serializer = FindUpdateSerializer(finds, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ============================================================================
+# CACHE CLAIMING ENDPOINTS
+# ============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@ratelimit(key='user', rate='20/h', method='POST')
+def claim_cache_view(request):
+    """
+    POST /api/spots/claim/
+    
+    Claim a cache by entering its unique code.
+    Rate limited to 20 attempts per user per hour to prevent brute-forcing.
+    
+    Edge cases (in exact priority order):
+    1. Missing or blank code: 400
+    2. Invalid characters (not alphanumeric): 400
+    3. Code length != 6: 400
+    4. No spot matches code (case-insensitive): 404
+    5. Spot exists but inactive: 404 (same message)
+    6. User already found spot: 400
+    7. Success: create Find, return details
+    """
+    # Check if rate limited
+    was_limited = getattr(request, 'limited', False)
+    if was_limited:
+        return Response(
+            {'error': 'Too many claim attempts. Try again later.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+    
+    serializer = ClaimCacheSerializer(data=request.data)
+    
+    # This will validate format (steps 1-3)
+    if not serializer.is_valid():
+        # Return first error
+        errors = serializer.errors
+        if 'code' in errors:
+            error_message = errors['code'][0]
+            return Response(
+                {'error': str(error_message)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    code = serializer.validated_data['code']
+    
+    # Look up spot by code (case-insensitive)
+    try:
+        spot = Spot.objects.get(unique_code__iexact=code)
+    except Spot.DoesNotExist:
+        # Step 4: No spot matches code
+        return Response(
+            {'error': 'No cache found with that code.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Step 5: Check if spot is active
+    if not spot.is_active:
+        # Use same message to prevent enumeration
+        return Response(
+            {'error': 'No cache found with that code.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Step 6: Check if user already found this spot
+    if Find.objects.filter(spot=spot, found_by=request.user).exists():
+        return Response(
+            {'error': 'You already found this cache!'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Step 7: Create the find
+    find = Find.objects.create(
+        spot=spot,
+        found_by=request.user
+    )
+    
+    # Get total finds for this spot
+    total_finds = spot.finds.count()
+    
+    # Return success response
+    response_data = {
+        'spot_id': spot.id,
+        'spot_name': spot.name,
+        'found_at': find.found_at,
+        'total_finds': total_finds,
+        'message': 'Cache found!'
+    }
+    
+    return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_finds_view(request):
+    """
+    GET /api/users/me/finds/
+    
+    Return current user's find history.
+    Ordered newest first.
+    
+    Edge case: User with no finds returns empty array with 200.
+    """
+    finds = Find.objects.filter(
+        found_by=request.user
+    ).select_related('spot').order_by('-found_at')
+    
+    serializer = UserFindHistory
     serializer = FindUpdateSerializer(finds, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 

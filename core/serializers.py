@@ -463,3 +463,62 @@ class FindUpdateSerializer(serializers.Serializer):
     found_by_username = serializers.CharField(source='found_by.username')
     found_at = serializers.DateTimeField()
 
+
+class ClaimCacheSerializer(serializers.Serializer):
+    """
+    Serializer for claiming a cache by code.
+    """
+    code = serializers.CharField(required=True)
+    
+    def validate_code(self, value):
+        """Validate code format."""
+        # Check if code is provided and not blank
+        if not value or not value.strip():
+            raise serializers.ValidationError("Please provide a cache code.")
+        
+        value = value.strip().upper()
+        
+        # Check if code contains only alphanumeric characters
+        if not value.isalnum():
+            raise serializers.ValidationError("Invalid code format.")
+        
+        # Check if code is exactly 6 characters
+        if len(value) != 6:
+            raise serializers.ValidationError("Cache codes are 6 characters long.")
+        
+        return value
+
+
+class ClaimCacheResponseSerializer(serializers.Serializer):
+    """
+    Serializer for successful cache claim response.
+    """
+    spot_id = serializers.IntegerField()
+    spot_name = serializers.CharField()
+    found_at = serializers.DateTimeField()
+    total_finds = serializers.IntegerField()
+    message = serializers.CharField()
+
+
+class SpotFindSerializer(serializers.Serializer):
+    """
+    Serializer for listing finds for a specific spot.
+    """
+    username = serializers.SerializerMethodField()
+    found_at = serializers.DateTimeField()
+    
+    def get_username(self, obj):
+        """Return display_name if set, else username."""
+        if obj.found_by.display_name:
+            return obj.found_by.display_name
+        return obj.found_by.username
+
+
+class UserFindHistorySerializer(serializers.Serializer):
+    """
+    Serializer for user's find history.
+    """
+    spot_id = serializers.IntegerField(source='spot.id')
+    spot_name = serializers.CharField(source='spot.name')
+    found_at = serializers.DateTimeField()
+
